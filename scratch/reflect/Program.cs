@@ -15,32 +15,25 @@ class Program {
     static void Main() {
         AppDomain.CurrentDomain.ReflectionOnlyAssemblyResolve += ResolveAssembly;
         
-        var asm = Assembly.ReflectionOnlyLoadFrom(System.IO.Path.Combine(managedDir, "Assembly-CSharp.dll"));
+        var asm = Assembly.ReflectionOnlyLoadFrom(System.IO.Path.Combine(managedDir, "Assembly-CSharp-firstpass.dll"));
         
-        string[] typeNames = new string[] { "DragTool", "DigTool", "DeconstructTool", "CancelTool", "PrioritizeTool", "BuildTool", "Diggable", "Deconstructable", "Prioritizable" };
-        
-        foreach (var typeName in typeNames) {
-            var t = asm.GetType(typeName);
-            if (t != null) {
-                Console.WriteLine("=== " + typeName + " ===");
-                Console.WriteLine("  Base: " + (t.BaseType != null ? t.BaseType.Name : "null"));
-                var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-                try {
-                    foreach (var m in t.GetMethods(flags)) {
-                        string pars = "";
-                        foreach (var p in m.GetParameters()) {
-                            if (pars.Length > 0) pars += ", ";
-                            pars += p.ParameterType.Name + " " + p.Name;
-                        }
-                        Console.WriteLine("  " + m.ReturnType.Name + " " + m.Name + "(" + pars + ")");
-                    }
-                } catch (Exception ex) {
-                    Console.WriteLine("  Error: " + ex.GetType().Name + " - " + ex.Message);
-                }
-                Console.WriteLine();
-            } else {
-                Console.WriteLine("Type not found: " + typeName);
+        try {
+            foreach (var type in asm.GetTypes()) {
+                CheckType(type);
             }
+        } catch (ReflectionTypeLoadException ex) {
+            foreach (var type in ex.Types) {
+                if (type != null) {
+                    CheckType(type);
+                }
+            }
+        }
+    }
+    
+    static void CheckType(Type type) {
+        if (type.Name.IndexOf("Tame", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            type.Name.IndexOf("Wild", StringComparison.OrdinalIgnoreCase) >= 0) {
+            Console.WriteLine("Found type firstpass: " + type.FullName);
         }
     }
 }

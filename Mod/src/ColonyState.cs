@@ -250,26 +250,8 @@ namespace GameplayNotIncluded
                 summary.foodStorage.totalCalories = totalKcals;
                 summary.foodStorage.items.AddRange(foodItemsMap.Values);
 
-                // 3. Critters Section
+                // 3. Critters Section — fully dynamic, keyed by raw prefab tag name
                 var crittersMap = new Dictionary<string, CritterEntry>();
-                string[] baseCritterIds = { "Hatch", "Drecko", "LightBug", "Squirrel", "Pacu", "DivergentBeetle", "IceBelly", "Squid" };
-                foreach (var id in baseCritterIds)
-                {
-                    crittersMap[id] = new CritterEntry
-                    {
-                        id = id,
-                        wild = 0,
-                        domesticHappy = 0,
-                        domesticGlum = 0,
-                        eggs = 0,
-                        activeFeed = null,
-
-                        wildCount = 0,
-                        domesticHappyCount = 0,
-                        domesticGlumCount = 0,
-                        eggsCount = 0
-                    };
-                }
 
                 // Count live critters using Components.Brains
                 if (Components.Brains != null && Components.Brains.Items != null)
@@ -282,54 +264,70 @@ namespace GameplayNotIncluded
                             var prefabID = critter.GetComponent<KPrefabID>();
                             if (prefabID == null) continue;
 
-                            string mappedId = GetMappedCritterId(prefabID.PrefabTag.Name);
-                            if (mappedId == null || !crittersMap.ContainsKey(mappedId)) continue;
+                            string speciesId = prefabID.PrefabTag.Name;
+                            if (!crittersMap.ContainsKey(speciesId))
+                            {
+                                crittersMap[speciesId] = new CritterEntry
+                                {
+                                    id = speciesId,
+                                    wild = 0, domesticHappy = 0, domesticGlum = 0, eggs = 0, activeFeed = null,
+                                    wildCount = 0, domesticHappyCount = 0, domesticGlumCount = 0, eggsCount = 0
+                                };
+                            }
 
-                            var traits = critter.GetComponent<Traits>();
-                            bool isWild = traits != null && traits.HasTrait("Wild");
+                            var wildnessAmount = Db.Get().Amounts.Wildness.Lookup(critter);
+                            bool isWild = wildnessAmount != null && wildnessAmount.value > 0f;
 
                             if (isWild)
                             {
-                                crittersMap[mappedId].wild++;
-                                crittersMap[mappedId].wildCount++;
+                                crittersMap[speciesId].wild++;
+                                crittersMap[speciesId].wildCount++;
                             }
                             else
                             {
-                                var effects = critter.GetComponent<Effects>();
-                                bool isGlum = effects != null && effects.HasEffect("Glum");
-
+                                var critterEffects = critter.GetComponent<Effects>();
+                                bool isGlum = critterEffects != null && critterEffects.HasEffect("Glum");
                                 if (isGlum)
                                 {
-                                    crittersMap[mappedId].domesticGlum++;
-                                    crittersMap[mappedId].domesticGlumCount++;
+                                    crittersMap[speciesId].domesticGlum++;
+                                    crittersMap[speciesId].domesticGlumCount++;
                                 }
                                 else
                                 {
-                                    crittersMap[mappedId].domesticHappy++;
-                                    crittersMap[mappedId].domesticHappyCount++;
+                                    crittersMap[speciesId].domesticHappy++;
+                                    crittersMap[speciesId].domesticHappyCount++;
                                 }
                             }
                         }
                     }
                 }
 
-                // Count eggs
+                // Count eggs — detect by IncubationMonitor component on pickupables
                 if (Components.Pickupables != null && Components.Pickupables.Items != null)
                 {
                     foreach (var pickupable in Components.Pickupables.Items)
                     {
-                        if (pickupable != null && pickupable.GetMyWorldId() == activeWorldId)
-                        {
-                            var prefabID = pickupable.GetComponent<KPrefabID>();
-                            if (prefabID == null) continue;
+                        if (pickupable == null || pickupable.GetMyWorldId() != activeWorldId) continue;
+                        var incubation = pickupable.GetComponent<IncubationMonitor.Instance>();
+                        if (incubation == null) continue;
+                        var prefabID = pickupable.GetComponent<KPrefabID>();
+                        if (prefabID == null) continue;
 
-                            string mappedId = GetMappedEggId(prefabID.PrefabTag.Name);
-                            if (mappedId != null && crittersMap.ContainsKey(mappedId))
+                        // Egg prefab names typically end with "Egg" — strip suffix to get species id
+                        string eggPrefab = prefabID.PrefabTag.Name;
+                        string speciesId = eggPrefab.EndsWith("Egg") ? eggPrefab.Substring(0, eggPrefab.Length - 3) : eggPrefab;
+
+                        if (!crittersMap.ContainsKey(speciesId))
+                        {
+                            crittersMap[speciesId] = new CritterEntry
                             {
-                                crittersMap[mappedId].eggs++;
-                                crittersMap[mappedId].eggsCount++;
-                            }
+                                id = speciesId,
+                                wild = 0, domesticHappy = 0, domesticGlum = 0, eggs = 0, activeFeed = null,
+                                wildCount = 0, domesticHappyCount = 0, domesticGlumCount = 0, eggsCount = 0
+                            };
                         }
+                        crittersMap[speciesId].eggs++;
+                        crittersMap[speciesId].eggsCount++;
                     }
                 }
 
@@ -448,32 +446,6 @@ namespace GameplayNotIncluded
             {
                 Debug.LogWarning("[GameplayNotIncluded] Error exporting colony state: " + ex.ToString());
             }
-        }
-
-        private static string GetMappedCritterId(string prefabName)
-        {
-            if (prefabName.Contains("Hatch")) return "Hatch";
-            if (prefabName.Contains("Drecko")) return "Drecko";
-            if (prefabName.Contains("LightBug")) return "LightBug";
-            if (prefabName.Contains("Squirrel")) return "Squirrel";
-            if (prefabName.Contains("Pacu")) return "Pacu";
-            if (prefabName.Contains("DivergentBeetle")) return "DivergentBeetle";
-            if (prefabName.Contains("IceBelly") || prefabName.Contains("Belly")) return "IceBelly";
-            if (prefabName.Contains("Squid")) return "Squid";
-            return null;
-        }
-
-        private static string GetMappedEggId(string prefabName)
-        {
-            if (prefabName.Contains("HatchEgg")) return "Hatch";
-            if (prefabName.Contains("DreckoEgg")) return "Drecko";
-            if (prefabName.Contains("LightBugEgg")) return "LightBug";
-            if (prefabName.Contains("SquirrelEgg")) return "Squirrel";
-            if (prefabName.Contains("PacuEgg")) return "Pacu";
-            if (prefabName.Contains("DivergentBeetleEgg")) return "DivergentBeetle";
-            if (prefabName.Contains("IceBellyEgg") || prefabName.Contains("BellyEgg")) return "IceBelly";
-            if (prefabName.Contains("SquidEgg")) return "Squid";
-            return null;
         }
 
         private static string GetMappedCropId(string prefabName)

@@ -18,6 +18,7 @@ namespace GameplayNotIncluded
         private readonly ConcurrentQueue<string> _messageQueue = new ConcurrentQueue<string>();
         private readonly AutoResetEvent _messageEvent = new AutoResetEvent(false);
         private Thread _broadcastThread;
+        private volatile string _lastBroadcast = null;
 
         public void Start(int port)
         {
@@ -67,6 +68,7 @@ namespace GameplayNotIncluded
 
         public void EnqueueMessage(string json)
         {
+            _lastBroadcast = json;
             _messageQueue.Enqueue(json);
             _messageEvent.Set();
         }
@@ -199,6 +201,23 @@ namespace GameplayNotIncluded
 
                         _clients.TryAdd(clientId, client);
                         UnityEngine.Debug.Log($"[GameplayNotIncluded] Client connected. Total clients: {_clients.Count}");
+
+                        // Immediately send the most recent broadcast to the new client
+                        string snapshot = _lastBroadcast;
+                        if (snapshot != null)
+                        {
+                            try
+                            {
+                                byte[] snapPayload = Encoding.UTF8.GetBytes(snapshot);
+                                byte[] snapFrame = CreateTextFrame(snapPayload);
+                                await stream.WriteAsync(snapFrame, 0, snapFrame.Length).ConfigureAwait(false);
+                                await stream.FlushAsync().ConfigureAwait(false);
+                            }
+                            catch (Exception ex)
+                            {
+                                UnityEngine.Debug.LogWarning("[GameplayNotIncluded] Failed to send snapshot to new client: " + ex.Message);
+                            }
+                        }
 
                         // Keep connection open and read (to detect disconnects)
                         while (client.Connected)
