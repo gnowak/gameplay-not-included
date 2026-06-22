@@ -1,0 +1,28 @@
+# C# Build Directories
+**/bin/
+**/obj/
+
+# IDE/Editor folders
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Python files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local configuration files (contains API keys)
+config.json

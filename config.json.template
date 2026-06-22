@@ -1,0 +1,7 @@
+{
+  "provider": "openrouter",
+  "model": "anthropic/claude-3.5-sonnet",
+  "api_key": "YOUR_OPENROUTER_API_KEY_HERE",
+  "ollama_url": "http://localhost:11434",
+  "ollama_model": "llama3"
+}
